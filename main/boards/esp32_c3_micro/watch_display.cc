@@ -65,6 +65,16 @@ void WatchDisplay::SetupUI() {
     LcdDisplay::SetupUI();
 
     DisplayLockGuard lock(this);
+    // Keep the objects alive because LcdDisplay still accesses them from theme
+    // and preview code, but leave them permanently hidden on this board.
+    if (emoji_box_ != nullptr) {
+        lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (preview_image_ != nullptr) {
+        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+    }
+    LayoutTextUI();
+
     clock_root_ = lv_obj_create(lv_screen_active());
     lv_obj_set_size(clock_root_, width_, height_);
     lv_obj_align(clock_root_, LV_ALIGN_CENTER, 0, 0);
@@ -167,8 +177,81 @@ void WatchDisplay::CreateClockFace() {
 
 void WatchDisplay::SetStatus(const char* status) {
     LcdDisplay::SetStatus(status);
+    {
+        DisplayLockGuard lock(this);
+        LayoutTextUI();
+    }
     SetClockVisible(Application::GetInstance().GetDeviceState() ==
                     kDeviceStateIdle);
+}
+
+void WatchDisplay::SetChatMessage(const char* role, const char* content) {
+    LcdDisplay::SetChatMessage(role, content);
+    DisplayLockGuard lock(this);
+    LayoutTextUI();
+}
+
+void WatchDisplay::LayoutTextUI() {
+    // Use explicit geometry on this 240x240 round panel. Relative alignment
+    // against LV_SIZE_CONTENT objects can be recalculated by LVGL and move the
+    // text back to its original position.
+    if (status_bar_ != nullptr) {
+        lv_obj_set_size(status_bar_, 180, 24);
+        lv_obj_set_pos(status_bar_, 5, 38);
+    }
+    if (status_label_ != nullptr) {
+        lv_obj_set_width(status_label_, 170);
+        lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
+    }
+    if (notification_label_ != nullptr) {
+        lv_obj_set_width(notification_label_, 170);
+        lv_obj_align(notification_label_, LV_ALIGN_CENTER, 0, 0);
+    }
+    if (bottom_bar_ != nullptr) {
+        lv_obj_set_width(bottom_bar_, 190);
+        lv_obj_set_pos(bottom_bar_, 5, 66);
+    }
+    if (chat_message_label_ != nullptr) {
+        lv_obj_set_width(chat_message_label_, 174);
+        lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0);
+    }
+}
+
+void WatchDisplay::SetEmotion(const char* emotion) {
+    // Intentionally ignore emotion changes on the round watch display. Status
+    // and chat text continue to be handled by the base display implementation.
+    (void)emotion;
+    DisplayLockGuard lock(this);
+    if (gif_controller_) {
+        gif_controller_->Stop();
+        gif_controller_.reset();
+    }
+    if (emoji_label_ != nullptr) {
+        lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (emoji_image_ != nullptr) {
+        lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (emoji_box_ != nullptr) {
+        lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void WatchDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
+    // Preview images are disabled for the text-only watch UI. Let the incoming
+    // image be released here and preserve valid base-class LVGL objects.
+    (void)image;
+    DisplayLockGuard lock(this);
+    if (gif_controller_) {
+        gif_controller_->Stop();
+        gif_controller_.reset();
+    }
+    if (preview_image_ != nullptr) {
+        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (emoji_box_ != nullptr) {
+        lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 void WatchDisplay::SetClockVisible(bool visible) {
@@ -177,6 +260,9 @@ void WatchDisplay::SetClockVisible(bool visible) {
     }
 
     DisplayLockGuard lock(this);
+    if (emoji_box_ != nullptr) {
+        lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+    }
     lv_obj_t* normal_ui[] = {container_, top_bar_, status_bar_, content_,
                              bottom_bar_, side_bar_};
     for (lv_obj_t* object : normal_ui) {
