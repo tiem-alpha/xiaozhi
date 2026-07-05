@@ -207,30 +207,30 @@ private:
     }
 
     void InitializeButtons() {
-        //  touch_button_.OnClick([this]() {
-        //     auto& app = Application::GetInstance();
-        //     if (app.GetDeviceState() == kDeviceStateStarting) {
-        //         EnterWifiConfigMode();
-        //         return;
-        //     }
-        //     if (!press_to_talk_tool_ || !press_to_talk_tool_->IsPressToTalkEnabled()) {
-        //         app.ToggleChatState();
+         touch_button_.OnClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
+            }
+            if (!press_to_talk_tool_ || !press_to_talk_tool_->IsPressToTalkEnabled()) {
+                app.ToggleChatState();
+            }
+        });
+
+        // touch_button_.OnPressDown([this]() {
+        //     // if (power_save_timer_) {
+        //     //     power_save_timer_->WakeUp();
+        //     // }
+        //    if (press_to_talk_tool_ && press_to_talk_tool_->IsPressToTalkEnabled()) {
+        //         Application::GetInstance().StartListening();
         //     }
         // });
-
-        touch_button_.OnPressDown([this]() {
-            // if (power_save_timer_) {
-            //     power_save_timer_->WakeUp();
-            // }
-           if (press_to_talk_tool_ && press_to_talk_tool_->IsPressToTalkEnabled()) {
-                Application::GetInstance().StartListening();
-            }
-        });
-        touch_button_.OnPressUp([this]() {
-            if (press_to_talk_tool_ && press_to_talk_tool_->IsPressToTalkEnabled()) {
-                Application::GetInstance().StopListening();
-            }
-        });
+        // touch_button_.OnPressUp([this]() {
+        //     if (press_to_talk_tool_ && press_to_talk_tool_->IsPressToTalkEnabled()) {
+        //         Application::GetInstance().StopListening();
+        //     }
+        // });
     }
 
     void InitializeTools() {

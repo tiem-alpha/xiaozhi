@@ -18,7 +18,7 @@
 
 
 
-#define TOUCH_BUTTON_GPIO       GPIO_NUM_21
+#define TOUCH_BUTTON_GPIO       GPIO_NUM_8
 
 #define CONFIG_LCD_GC9A01_240X240
 /// lcd i2c 
@@ -30,6 +30,10 @@
 // #define DISPLAY_MIRROR_X false
 // #define DISPLAY_MIRROR_Y false
 
+// GPIO_NUM_4 : RST
+// GPIO_NUM_8 : booot
+//GPIO_NUM_21
+
 #define DISPLAY_BACKLIGHT_PIN   GPIO_NUM_NC
 #define DISPLAY_SCLK_PIN    GPIO_NUM_9
 #define DISPLAY_MOSI_PIN    GPIO_NUM_5
@@ -37,7 +41,7 @@
 #define DISPLAY_DC_PIN      GPIO_NUM_20
 #define DISPLAY_RESET_PIN   GPIO_NUM_NC
 
-#define DISPLAY_SPI_SCLK_HZ     (1 * 1000 * 1000)
+#define DISPLAY_SPI_SCLK_HZ     (10 * 1000 * 1000)
 
 #ifdef CONFIG_LCD_GC9A01_240X240
 #define LCD_TYPE_GC9A01_SERIAL
