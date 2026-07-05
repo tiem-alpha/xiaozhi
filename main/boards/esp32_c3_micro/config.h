@@ -58,4 +58,13 @@
 #define DISPLAY_SPI_MODE 0
 #endif
 
+// Analog watch appearance (RGB888). These values are converted by LVGL.
+#define WATCH_HOUR_HAND_COLOR   0x2EAC74
+#define WATCH_MINUTE_HAND_COLOR 0x2EAC74
+#define WATCH_SECOND_HAND_COLOR 0xBFA600
+#define WATCH_CENTER_COLOR      0x101010
+#define WATCH_HOUR_HAND_WIDTH   10
+#define WATCH_MINUTE_HAND_WIDTH 7
+#define WATCH_SECOND_HAND_WIDTH 3
+
 #endif // _BOARD_CONFIG_H_
