@@ -2,6 +2,7 @@
 
 #include "application.h"
 #include "config.h"
+#include "lvgl_theme.h"
 
 #include <cmath>
 #include <ctime>
@@ -54,6 +55,11 @@ WatchDisplay::~WatchDisplay() {
         esp_timer_delete(clock_timer_);
         clock_timer_ = nullptr;
     }
+    if (watch_chat_label_ != nullptr) {
+        DisplayLockGuard lock(this);
+        lv_obj_del(watch_chat_label_);
+        watch_chat_label_ = nullptr;
+    }
     if (clock_root_ != nullptr) {
         DisplayLockGuard lock(this);
         lv_obj_del(clock_root_);
@@ -73,6 +79,18 @@ void WatchDisplay::SetupUI() {
     if (preview_image_ != nullptr) {
         lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
     }
+
+    auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+    watch_chat_label_ = lv_label_create(lv_screen_active());
+    lv_label_set_text(watch_chat_label_, "");
+    lv_label_set_long_mode(watch_chat_label_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(watch_chat_label_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(watch_chat_label_,
+                               lvgl_theme->text_font()->font(), 0);
+    lv_obj_set_style_text_color(watch_chat_label_,
+                                lvgl_theme->text_color(), 0);
+    lv_obj_add_flag(watch_chat_label_, LV_OBJ_FLAG_HIDDEN);
+
     LayoutTextUI();
 
     clock_root_ = lv_obj_create(lv_screen_active());
@@ -181,40 +199,90 @@ void WatchDisplay::SetStatus(const char* status) {
         DisplayLockGuard lock(this);
         LayoutTextUI();
     }
-    SetClockVisible(Application::GetInstance().GetDeviceState() ==
-                    kDeviceStateIdle);
+    const bool idle = Application::GetInstance().GetDeviceState() ==
+                      kDeviceStateIdle;
+    SetClockVisible(idle && !HasChatContent());
 }
 
 void WatchDisplay::SetChatMessage(const char* role, const char* content) {
     LcdDisplay::SetChatMessage(role, content);
-    DisplayLockGuard lock(this);
-    LayoutTextUI();
+    {
+        DisplayLockGuard lock(this);
+        if (watch_chat_label_ != nullptr) {
+            const char* text = content != nullptr ? content : "";
+            lv_label_set_text(watch_chat_label_, text);
+            if (text[0] == '\0') {
+                lv_obj_add_flag(watch_chat_label_, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                lv_obj_remove_flag(watch_chat_label_, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+        LayoutTextUI();
+    }
+
+    const bool idle = Application::GetInstance().GetDeviceState() ==
+                      kDeviceStateIdle;
+    SetClockVisible(idle && !HasChatContent());
+}
+
+void WatchDisplay::ClearChatMessages() {
+    LcdDisplay::ClearChatMessages();
+    {
+        DisplayLockGuard lock(this);
+        if (watch_chat_label_ != nullptr) {
+            lv_label_set_text(watch_chat_label_, "");
+            lv_obj_add_flag(watch_chat_label_, LV_OBJ_FLAG_HIDDEN);
+        }
+        LayoutTextUI();
+    }
+
+    const bool idle = Application::GetInstance().GetDeviceState() ==
+                      kDeviceStateIdle;
+    SetClockVisible(idle);
 }
 
 void WatchDisplay::LayoutTextUI() {
     // Use explicit geometry on this 240x240 round panel. Relative alignment
     // against LV_SIZE_CONTENT objects can be recalculated by LVGL and move the
     // text back to its original position.
+    if (top_bar_ != nullptr) {
+        lv_obj_set_size(top_bar_, 184, LV_SIZE_CONTENT);
+        lv_obj_set_pos(top_bar_, 28, 8);
+    }
     if (status_bar_ != nullptr) {
-        lv_obj_set_size(status_bar_, 180, 24);
-        lv_obj_set_pos(status_bar_, 5, 38);
+        lv_obj_set_size(status_bar_, 190, 34);
+        lv_obj_set_pos(status_bar_, 25, 46);
     }
     if (status_label_ != nullptr) {
-        lv_obj_set_width(status_label_, 170);
+        lv_obj_set_width(status_label_, 180);
         lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
     }
     if (notification_label_ != nullptr) {
-        lv_obj_set_width(notification_label_, 170);
+        lv_obj_set_width(notification_label_, 180);
         lv_obj_align(notification_label_, LV_ALIGN_CENTER, 0, 0);
     }
     if (bottom_bar_ != nullptr) {
-        lv_obj_set_width(bottom_bar_, 190);
-        lv_obj_set_pos(bottom_bar_, 5, 66);
+        lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
     }
     if (chat_message_label_ != nullptr) {
-        lv_obj_set_width(chat_message_label_, 174);
-        lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0);
+        lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
     }
+    if (watch_chat_label_ != nullptr) {
+        lv_obj_set_size(watch_chat_label_, 176, 104);
+        lv_obj_set_pos(watch_chat_label_, 32, 86);
+        lv_label_set_long_mode(watch_chat_label_, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(watch_chat_label_, LV_TEXT_ALIGN_CENTER, 0);
+    }
+}
+
+bool WatchDisplay::HasChatContent() {
+    DisplayLockGuard lock(this);
+    if (watch_chat_label_ == nullptr) {
+        return false;
+    }
+
+    const char* text = lv_label_get_text(watch_chat_label_);
+    return text != nullptr && text[0] != '\0';
 }
 
 void WatchDisplay::SetEmotion(const char* emotion) {
@@ -235,6 +303,12 @@ void WatchDisplay::SetEmotion(const char* emotion) {
     if (emoji_box_ != nullptr) {
         lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
     }
+    // lv_remove_obj_from_parent(emoji_box_);  
+    // emoji_box_ = nullptr;
+    // lv_remove_obj_from_parent(emoji_label_);  
+    // emoji_label_ = nullptr;
+    // lv_remove_obj_from_parent(emoji_image_);  
+    // emoji_image_ = nullptr;
 }
 
 void WatchDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
@@ -254,6 +328,20 @@ void WatchDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     }
 }
 
+void WatchDisplay::SetTheme(Theme* theme) {
+    LcdDisplay::SetTheme(theme);
+
+    DisplayLockGuard lock(this);
+    auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+    if (watch_chat_label_ != nullptr && lvgl_theme != nullptr) {
+        lv_obj_set_style_text_font(watch_chat_label_,
+                                   lvgl_theme->text_font()->font(), 0);
+        lv_obj_set_style_text_color(watch_chat_label_,
+                                    lvgl_theme->text_color(), 0);
+    }
+    LayoutTextUI();
+}
+
 void WatchDisplay::SetClockVisible(bool visible) {
     if (clock_root_ == nullptr) {
         return;
@@ -264,7 +352,7 @@ void WatchDisplay::SetClockVisible(bool visible) {
         lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
     }
     lv_obj_t* normal_ui[] = {container_, top_bar_, status_bar_, content_,
-                             bottom_bar_, side_bar_};
+                             side_bar_};
     for (lv_obj_t* object : normal_ui) {
         if (object == nullptr) {
             continue;
@@ -276,17 +364,28 @@ void WatchDisplay::SetClockVisible(bool visible) {
         }
     }
 
-    if (visible) {
+    if (visible) { // Show the clock and hide the text UI.
+        if (bottom_bar_ != nullptr) {
+            lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (watch_chat_label_ != nullptr) {
+            lv_obj_add_flag(watch_chat_label_, LV_OBJ_FLAG_HIDDEN);
+        }
         lv_obj_remove_flag(clock_root_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(clock_root_);
         UpdateClock();
     } else {
         lv_obj_add_flag(clock_root_, LV_OBJ_FLAG_HIDDEN);
-        // Empty chat bars are hidden by LcdDisplay; do not expose one here.
-        if (bottom_bar_ != nullptr && chat_message_label_ != nullptr) {
-            const char* text = lv_label_get_text(chat_message_label_);
-            if (text == nullptr || text[0] == '\0') {
-                lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+        if (bottom_bar_ != nullptr) {
+            lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (watch_chat_label_ != nullptr) {
+            const char* text = lv_label_get_text(watch_chat_label_);
+            if (text != nullptr && text[0] != '\0') {
+                lv_obj_remove_flag(watch_chat_label_, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_move_foreground(watch_chat_label_);
+            } else {
+                lv_obj_add_flag(watch_chat_label_, LV_OBJ_FLAG_HIDDEN);
             }
         }
     }

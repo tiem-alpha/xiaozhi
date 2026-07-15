@@ -16,17 +16,21 @@ public:
     void SetStatus(const char* status) override;
     void SetEmotion(const char* emotion) override;
     void SetChatMessage(const char* role, const char* content) override;
+    void ClearChatMessages() override;
     void SetPreviewImage(std::unique_ptr<LvglImage> image) override;
+    void SetTheme(Theme* theme) override;
 
 private:
     static void ClockTimerCallback(void* arg);
     void LayoutTextUI();
+    bool HasChatContent();
     void SetClockVisible(bool visible);
     void CreateClockFace();
     void UpdateClock();
     void UpdateHand(lv_obj_t* hand, lv_point_precise_t (&points)[2],
                     float angle, float length, float tail);
 
+    lv_obj_t* watch_chat_label_ = nullptr;
     lv_obj_t* clock_root_ = nullptr;
     lv_obj_t* hour_hand_ = nullptr;
     lv_obj_t* minute_hand_ = nullptr;

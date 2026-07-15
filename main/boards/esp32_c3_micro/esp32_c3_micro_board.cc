@@ -9,6 +9,9 @@
 #include "watch_display.h"
 #include "assets/lang_config.h"
 #include <esp_log.h>
+#include <esp_partition.h>
+#include <esp_system.h>
+#include <nvs_flash.h>
 // i2c lcd 
 // #include <driver/i2c_master.h>
 // #include <esp_lcd_panel_ops.h>
@@ -70,6 +73,8 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
 
 class ESP32C3MicroBoard : public WifiBoard {
 private:
+    static constexpr uint16_t kFactoryResetHoldTimeMs = 10000;
+
     Button touch_button_;
     i2c_master_bus_handle_t display_i2c_bus_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
@@ -218,6 +223,31 @@ private:
             }
         });
 
+        touch_button_.OnLongPress([]() {
+            ESP_LOGW(TAG, "Touch button held for 10 seconds: factory reset");
+
+            esp_err_t err = nvs_flash_erase();
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to erase NVS: %s", esp_err_to_name(err));
+                return;
+            }
+
+            const esp_partition_t* ota_data = esp_partition_find_first(
+                ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, nullptr);
+            if (ota_data != nullptr) {
+                err = esp_partition_erase_range(ota_data, 0, ota_data->size);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to erase OTA data: %s", esp_err_to_name(err));
+                    return;
+                }
+            } else {
+                ESP_LOGW(TAG, "OTA data partition not found; NVS was still erased");
+            }
+
+            ESP_LOGI(TAG, "Factory reset complete, restarting");
+            esp_restart();
+        });
+
         // touch_button_.OnPressDown([this]() {
         //     // if (power_save_timer_) {
         //     //     power_save_timer_->WakeUp();
@@ -239,7 +269,8 @@ private:
     }
     
 public:
-    ESP32C3MicroBoard() : touch_button_(TOUCH_BUTTON_GPIO) {
+    ESP32C3MicroBoard()
+        : touch_button_(TOUCH_BUTTON_GPIO, false, kFactoryResetHoldTimeMs) {
         // InitializeDisplayI2c();
         // InitializeSsd1306Display();
          InitializeSpi();
